@@ -103,6 +103,13 @@ cdef extern from "libavutil/avutil.h" nogil:
         int search_flags
     )
 
+    cdef int av_opt_get_int(
+        void *obj,
+        char *name,
+        int search_flags,
+        int64_t *out_val
+    )
+
     cdef const char* av_get_media_type_string(AVMediaType media_type)
 
 cdef extern from "libavutil/pixdesc.h" nogil:

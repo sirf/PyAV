@@ -647,3 +647,16 @@ cdef class CodecContext(object):
 
         def __set__(self, value):
             self.ptr.skip_frame = SkipType[value].value
+
+    # Default search_flags to AV_OPT_SEARCH_CHILDREN
+    def opt_set_int(self, name: str, value: int, search_flags: int = 1):
+        ret = lib.av_opt_set_int(self.ptr, name, value, search_flags)
+        if ret != 0:
+            raise RuntimeError(f'av_opt_set_int() = {ret}')
+
+    def opt_get_int(self, name: str, search_flags: int = 1):
+        cdef int64_t val
+        ret = lib.av_opt_get_int(self.ptr, name, search_flags, &val)
+        if ret != 0:
+            raise RuntimeError(f'av_opt_get_int() = {ret}')
+        return val
