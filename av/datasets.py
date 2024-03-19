@@ -1,15 +1,13 @@
-from urllib.request import urlopen
 import errno
 import logging
 import os
 import sys
-
+from urllib.request import urlopen
 
 log = logging.getLogger(__name__)
 
 
 def iter_data_dirs(check_writable=False):
-
     try:
         yield os.environ["PYAV_TESTDATA_DIR"]
     except KeyError:
@@ -45,7 +43,6 @@ def iter_data_dirs(check_writable=False):
 
 
 def cached_download(url, name):
-
     """Download the data at a URL, and cache it under the given name.
 
     The file is stored under `pyav/test` with the given name in the directory
@@ -62,7 +59,7 @@ def cached_download(url, name):
 
     clean_name = os.path.normpath(name)
     if clean_name != name:
-        raise ValueError("{} is not normalized.".format(name))
+        raise ValueError(f"{name} is not normalized.")
 
     for dir_ in iter_data_dirs():
         path = os.path.join(dir_, name)
@@ -72,11 +69,11 @@ def cached_download(url, name):
     dir_ = next(iter_data_dirs(True))
     path = os.path.join(dir_, name)
 
-    log.info("Downloading {} to {}".format(url, path))
+    log.info(f"Downloading {url} to {path}")
 
     response = urlopen(url)
     if response.getcode() != 200:
-        raise ValueError("HTTP {}".format(response.getcode()))
+        raise ValueError(f"HTTP {response.getcode()}")
 
     dir_ = os.path.dirname(path)
     try:

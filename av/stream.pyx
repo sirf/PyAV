@@ -1,18 +1,16 @@
 import warnings
 
-from cpython cimport PyWeakref_NewRef
-from libc.stdint cimport int64_t, uint8_t
-from libc.string cimport memcpy
 cimport libav as lib
+from libc.stdint cimport int32_t
 
-from av.codec.context cimport wrap_codec_context
+from av.enum cimport define_enum
 from av.error cimport err_check
 from av.packet cimport Packet
 from av.utils cimport (
     avdict_to_dict,
     avrational_to_fraction,
     dict_to_avdict,
-    to_avrational
+    to_avrational,
 )
 
 from av.deprecation import AVDeprecationWarning
@@ -20,6 +18,12 @@ from av.deprecation import AVDeprecationWarning
 
 cdef object _cinit_bypass_sentinel = object()
 
+
+# If necessary more can be added from
+# https://ffmpeg.org/doxygen/trunk/group__lavc__packet.html#ga9a80bfcacc586b483a973272800edb97
+SideData = define_enum("SideData", __name__, (
+    ("DISPLAYMATRIX", lib.AV_PKT_DATA_DISPLAYMATRIX, "Display Matrix"),
+))
 
 cdef Stream wrap_stream(Container container, lib.AVStream *c_stream, CodecContext codec_context):
     """Build an av.Stream for an existing AVStream.
@@ -53,7 +57,7 @@ cdef Stream wrap_stream(Container container, lib.AVStream *c_stream, CodecContex
     return py_stream
 
 
-cdef class Stream(object):
+cdef class Stream:
     """
     A single stream of audio, video or subtitles within a :class:`.Container`.
 
@@ -73,7 +77,7 @@ cdef class Stream(object):
     def __cinit__(self, name):
         if name is _cinit_bypass_sentinel:
             return
-        raise RuntimeError('cannot manually instantiate Stream')
+        raise RuntimeError("cannot manually instantiate Stream")
 
     cdef _init(self, Container container, lib.AVStream *stream, CodecContext codec_context):
         self.container = container
@@ -83,6 +87,8 @@ cdef class Stream(object):
         if self.codec_context:
             self.codec_context.stream_index = stream.index
 
+        self.nb_side_data, self.side_data = self._get_side_data(stream)
+        
         self.metadata = avdict_to_dict(
             stream.metadata,
             encoding=self.container.metadata_encoding,
@@ -90,22 +96,24 @@ cdef class Stream(object):
         )
 
     def __repr__(self):
-        return '<av.%s #%d %s/%s at 0x%x>' % (
-            self.__class__.__name__,
-            self.index,
-            self.type or '<notype>',
-            self.name or '<nocodec>',
-            id(self),
+        return (
+            f"<av.{self.__class__.__name__} #{self.index} {self.type or '<notype>'}/"
+            f"{self.name or '<nocodec>'} at 0x{id(self):x}>"
         )
 
     def __getattr__(self, name):
         # Deprecate framerate pass-through as it is not always set.
-        # See: https://github.com/PyAV-Org/PyAV/issues/1005
+        # See: https://github.com/PyAV-Org/PyAV/issues/1005
         if self.ptr.codecpar.codec_type == lib.AVMEDIA_TYPE_VIDEO and name in ("framerate", "rate"):
             warnings.warn(
-                "VideoStream.%s is deprecated as it is not always set; please use VideoStream.average_rate." % name,
+                f"VideoStream.{name} is deprecated as it is not always set; please use VideoStream.average_rate.",
                 AVDeprecationWarning
             )
+
+        if name == "side_data":
+            return self.side_data
+        elif name == "nb_side_data":
+            return self.nb_side_data
 
         # Convenience getter for codec context properties.
         if self.codec_context is not None:
@@ -138,48 +146,29 @@ cdef class Stream(object):
         # Lets just copy what we want.
         err_check(lib.avcodec_parameters_from_context(self.ptr.codecpar, self.codec_context.ptr))
 
-    def encode(self, frame=None):
-        """
-        Encode an :class:`.AudioFrame` or :class:`.VideoFrame` and return a list
-        of :class:`.Packet`.
+    cdef _get_side_data(self, lib.AVStream *stream):
+        # Get DISPLAYMATRIX SideData from a lib.AVStream object.
+        # Returns: tuple[int, dict[str, Any]]
 
-        :return: :class:`list` of :class:`.Packet`.
+        nb_side_data = stream.nb_side_data
+        side_data = {}
+        
+        for i in range(nb_side_data):
+            # Based on: https://www.ffmpeg.org/doxygen/trunk/dump_8c_source.html#l00430
+            if stream.side_data[i].type == lib.AV_PKT_DATA_DISPLAYMATRIX:
+                side_data["DISPLAYMATRIX"] = lib.av_display_rotation_get(<const int32_t *>stream.side_data[i].data)
 
-        .. seealso:: This is mostly a passthrough to :meth:`.CodecContext.encode`.
-        """
-        if self.codec_context is None:
-            raise RuntimeError("Stream.encode requires a valid CodecContext")
+        return nb_side_data, side_data
 
-        packets = self.codec_context.encode(frame)
-        cdef Packet packet
-        for packet in packets:
-            packet._stream = self
-            packet.ptr.stream_index = self.ptr.index
-        return packets
-
-    def decode(self, packet=None):
-        """
-        Decode a :class:`.Packet` and return a list of :class:`.AudioFrame`
-        or :class:`.VideoFrame`.
-
-        :return: :class:`list` of :class:`.Frame` subclasses.
-
-        .. seealso:: This is mostly a passthrough to :meth:`.CodecContext.decode`.
-        """
-        if self.codec_context is None:
-            raise RuntimeError("Stream.decode requires a valid CodecContext")
-
-        return self.codec_context.decode(packet)
-
-    property id:
+    @property
+    def id(self):
         """
         The format-specific ID of this stream.
 
         :type: int
 
         """
-        def __get__(self):
-            return self.ptr.id
+        return self.ptr.id
 
     cdef _set_id(self, value):
         """
@@ -190,35 +179,37 @@ cdef class Stream(object):
         else:
             self.ptr.id = value
 
-    property profile:
+    @property
+    def profile(self):
         """
         The profile of this stream.
 
         :type: str
         """
-        def __get__(self):
-            if self.codec_context:
-                return self.codec_context.profile
-            else:
-                return None
+        if self.codec_context:
+            return self.codec_context.profile
+        else:
+            return None
 
-    property index:
+    @property
+    def index(self):
         """
         The index of this stream in its :class:`.Container`.
 
         :type: int
         """
-        def __get__(self): return self.ptr.index
+        return self.ptr.index
 
-    property time_base:
+
+    @property
+    def time_base(self):
         """
         The unit of time (in fractional seconds) in which timestamps are expressed.
 
         :type: :class:`~fractions.Fraction` or ``None``
 
         """
-        def __get__(self):
-            return avrational_to_fraction(&self.ptr.time_base)
+        return avrational_to_fraction(&self.ptr.time_base)
 
     cdef _set_time_base(self, value):
         """
@@ -226,71 +217,30 @@ cdef class Stream(object):
         """
         to_avrational(value, &self.ptr.time_base)
 
-    property average_rate:
-        """
-        The average frame rate of this video stream.
-
-        This is calculated when the file is opened by looking at the first
-        few frames and averaging their rate.
-
-        :type: :class:`~fractions.Fraction` or ``None``
-
-
-        """
-        def __get__(self):
-            return avrational_to_fraction(&self.ptr.avg_frame_rate)
-
-    property base_rate:
-        """
-        The base frame rate of this stream.
-
-        This is calculated as the lowest framerate at which the timestamps of
-        frames can be represented accurately. See :ffmpeg:`AVStream.r_frame_rate`
-        for more.
-
-        :type: :class:`~fractions.Fraction` or ``None``
-
-        """
-        def __get__(self):
-            return avrational_to_fraction(&self.ptr.r_frame_rate)
-
-    property guessed_rate:
-        """The guessed frame rate of this stream.
-
-        This is a wrapper around :ffmpeg:`av_guess_frame_rate`, and uses multiple
-        heuristics to decide what is "the" frame rate.
-
-        :type: :class:`~fractions.Fraction` or ``None``
-
-        """
-        def __get__(self):
-            # The two NULL arguments aren't used in FFmpeg >= 4.0
-            cdef lib.AVRational val = lib.av_guess_frame_rate(NULL, self.ptr, NULL)
-            return avrational_to_fraction(&val)
-
-    property start_time:
+    @property
+    def start_time(self):
         """
         The presentation timestamp in :attr:`time_base` units of the first
         frame in this stream.
 
         :type: :class:`int` or ``None``
         """
-        def __get__(self):
-            if self.ptr.start_time != lib.AV_NOPTS_VALUE:
-                return self.ptr.start_time
+        if self.ptr.start_time != lib.AV_NOPTS_VALUE:
+            return self.ptr.start_time
 
-    property duration:
+    @property
+    def duration(self):
         """
         The duration of this stream in :attr:`time_base` units.
 
         :type: :class:`int` or ``None``
 
         """
-        def __get__(self):
-            if self.ptr.duration != lib.AV_NOPTS_VALUE:
-                return self.ptr.duration
+        if self.ptr.duration != lib.AV_NOPTS_VALUE:
+            return self.ptr.duration
 
-    property frames:
+    @property
+    def frames(self):
         """
         The number of frames this stream contains.
 
@@ -298,17 +248,16 @@ cdef class Stream(object):
 
         :type: :class:`int`
         """
-        def __get__(self):
-            return self.ptr.nb_frames
+        return self.ptr.nb_frames
 
-    property language:
+    @property
+    def language(self):
         """
         The language of the stream.
 
         :type: :class:`str` or ``None``
         """
-        def __get__(self):
-            return self.metadata.get('language')
+        return self.metadata.get('language')
 
     @property
     def type(self):

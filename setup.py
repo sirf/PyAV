@@ -28,7 +28,6 @@ old_embed_signature = EmbedSignature._embed_signature
 
 
 def new_embed_signature(self, sig, doc):
-
     # Strip any `self` parameters from the front.
     sig = re.sub(r"\(self(,\s+)?", "(", sig)
 
@@ -180,26 +179,36 @@ with open(about_file, encoding="utf-8") as fp:
     exec(fp.read(), about)
 
 package_folders = pathlib.Path("av").glob("**/")
-package_data = {".".join(pckg.parts): ["*.pxd"] for pckg in package_folders}
+package_data = {".".join(pckg.parts): ["*.pxd", "*.pyi", "*.typed"] for pckg in package_folders}
 
+
+with open("README.md") as f:
+    long_description = f.read()
 
 setup(
     name="av",
     version=about["__version__"],
     description="Pythonic bindings for FFmpeg's libraries.",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    license="BSD",
+    project_urls={
+        "Bug Reports": "https://github.com/PyAV-Org/PyAV/issues",
+        "Documentation": "https://pyav.org/docs",
+        "Feedstock": "https://github.com/conda-forge/av-feedstock",
+        "Download": "https://pypi.org/project/av",
+    },
     author="Mike Boers",
     author_email="pyav@mikeboers.com",
     url="https://github.com/PyAV-Org/PyAV",
     packages=find_packages(exclude=["build*", "examples*", "scratchpad*", "tests*"]),
     package_data=package_data,
-    python_requires='>=3.7',
+    python_requires=">=3.8",
     zip_safe=False,
     ext_modules=ext_modules,
     test_suite="tests",
     entry_points={
-        "console_scripts": [
-            "pyav = av.__main__:main",
-        ],
+        "console_scripts": ["pyav = av.__main__:main"],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -211,11 +220,11 @@ setup(
         "Operating System :: Unix",
         "Operating System :: Microsoft :: Windows",
         "Programming Language :: Cython",
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Multimedia :: Sound/Audio",
         "Topic :: Multimedia :: Sound/Audio :: Conversion",

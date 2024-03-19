@@ -11,7 +11,7 @@ def _flatten(input_):
             yield x
 
 
-cdef class StreamContainer(object):
+cdef class StreamContainer:
 
     """
 
@@ -95,7 +95,6 @@ cdef class StreamContainer(object):
         selection = []
 
         for x in _flatten((args, kwargs)):
-
             if x is None:
                 pass
 
@@ -107,7 +106,7 @@ cdef class StreamContainer(object):
 
             elif isinstance(x, dict):
                 for type_, indices in x.items():
-                    if type_ == 'streams':  # For compatibility with the pseudo signature
+                    if type_ == "streams":  # For compatibility with the pseudo signature
                         streams = self._streams
                     else:
                         streams = getattr(self, type_)
@@ -117,6 +116,6 @@ cdef class StreamContainer(object):
                         selection.append(streams[i])
 
             else:
-                raise TypeError('Argument must be Stream or int.', type(x))
+                raise TypeError("Argument must be Stream or int.", type(x))
 
         return selection or self._streams[:]

@@ -32,15 +32,14 @@ API Reference
 
 from __future__ import absolute_import
 
-from libc.stdio cimport fprintf, printf, stderr
-from libc.stdlib cimport free, malloc
 cimport libav as lib
+from libc.stdio cimport fprintf, stderr
+from libc.stdlib cimport free, malloc
 
-from threading import Lock, get_ident
 import logging
 import os
 import sys
-
+from threading import Lock, get_ident
 
 # Library levels.
 # QUIET  = lib.AV_LOG_QUIET # -8; not really a level.
@@ -82,8 +81,8 @@ cpdef adapt_level(int level):
 cdef int level_threshold = lib.AV_LOG_VERBOSE
 
 # ... but lets limit ourselves to WARNING (assuming nobody already did this).
-if 'libav' not in logging.Logger.manager.loggerDict:
-    logging.getLogger('libav').setLevel(logging.WARNING)
+if "libav" not in logging.Logger.manager.loggerDict:
+    logging.getLogger("libav").setLevel(logging.WARNING)
 
 
 def get_level():
@@ -168,8 +167,7 @@ cpdef get_last_error():
 cdef global_captures = []
 cdef thread_captures = {}
 
-cdef class Capture(object):
-
+cdef class Capture:
     """A context manager for capturing logs.
 
     :param bool local: Should logs from all threads be captured, or just one
@@ -188,7 +186,6 @@ cdef class Capture(object):
     cdef list captures
 
     def __init__(self, bint local=True):
-
         self.logs = []
 
         if local:
@@ -208,7 +205,7 @@ cdef struct log_context:
     lib.AVClass *class_
     const char *name
 
-cdef const char *log_context_name(void *ptr) nogil:
+cdef const char *log_context_name(void *ptr) noexcept nogil:
     cdef log_context *obj = <log_context*>ptr
     return obj.name
 
@@ -229,7 +226,7 @@ cpdef log(int level, str name, str message):
     free(obj)
 
 
-cdef void log_callback(void *ptr, int level, const char *format, lib.va_list args) nogil:
+cdef void log_callback(void *ptr, int level, const char *format, lib.va_list args) noexcept nogil:
 
     cdef bint inited = lib.Py_IsInitialized()
     if not inited and not print_after_shutdown:
@@ -259,7 +256,6 @@ cdef void log_callback(void *ptr, int level, const char *format, lib.va_list arg
         return
 
     with gil:
-
         try:
             log_callback_gil(level, name, message)
 
@@ -272,14 +268,13 @@ cdef void log_callback(void *ptr, int level, const char *format, lib.va_list arg
 
 
 cdef log_callback_gil(int level, const char *c_name, const char *c_message):
-
     global error_count
     global skip_count
     global last_log
     global last_error
 
-    name = <str>c_name if c_name is not NULL else ''
-    message = (<bytes>c_message).decode('utf8', 'backslashreplace')
+    name = <str>c_name if c_name is not NULL else ""
+    message = (<bytes>c_message).decode("utf8", "backslashreplace")
     log = (level, name, message)
 
     # We have to filter it ourselves, but we will still process it in general so
@@ -294,9 +289,7 @@ cdef log_callback_gil(int level, const char *c_name, const char *c_message):
     cdef object repeat_log = None
 
     with skip_lock:
-
         if is_interesting:
-
             is_repeated = skip_repeated and last_log == log
 
             if is_repeated:
@@ -329,7 +322,6 @@ cdef log_callback_gil(int level, const char *c_name, const char *c_message):
 
 
 cdef log_callback_emit(log):
-
     lib_level, name, message = log
 
     captures = thread_captures.get(get_ident()) or global_captures
@@ -339,7 +331,7 @@ cdef log_callback_emit(log):
 
     py_level = adapt_level(lib_level)
 
-    logger_name = 'libav.' + name if name else 'libav.generic'
+    logger_name = "libav." + name if name else "libav.generic"
     logger = logging.getLogger(logger_name)
     logger.log(py_level, message.strip())
 
@@ -347,5 +339,5 @@ cdef log_callback_emit(log):
 # Start the magic!
 # We allow the user to fully disable the logging system as it will not play
 # nicely with subinterpreters due to FFmpeg-created threads.
-if os.environ.get('PYAV_LOGGING') != 'off':
+if os.environ.get("PYAV_LOGGING") != "off":
     lib.av_log_set_callback(log_callback)

@@ -9,22 +9,18 @@ integers for names and values respectively.
 
 """
 
-from collections import OrderedDict
 import copyreg
-import sys
 
 
 cdef sentinel = object()
 
 
 class EnumType(type):
-
     def __new__(mcl, name, bases, attrs, *args):
         # Just adapting the method signature.
         return super().__new__(mcl, name, bases, attrs)
 
     def __init__(self, name, bases, attrs, items):
-
         self._by_name = {}
         self._by_value = {}
         self._all = []
@@ -33,7 +29,6 @@ class EnumType(type):
             self._create(*spec)
 
     def _create(self, name, value, doc=None, by_value_only=False):
-
         # We only have one instance per value.
         try:
             item = self._by_value[value]
@@ -55,7 +50,6 @@ class EnumType(type):
         return iter(self._all)
 
     def __getitem__(self, key):
-
         if isinstance(key, str):
             return self._by_name[key]
 
@@ -73,12 +67,9 @@ class EnumType(type):
         if isinstance(key, self):
             return key
 
-        raise TypeError("{0} indices must be str, int, or {0}".format(
-            self.__name__,
-        ))
+        raise TypeError(f"{self.__name__} indices must be str, int, or itself")
 
     def _get(self, long value, bint create=False):
-
         try:
             return self._by_value[value]
         except KeyError:
@@ -87,10 +78,9 @@ class EnumType(type):
         if not create:
             return
 
-        return self._create('{}_{}'.format(self.__name__.upper(), value), value, by_value_only=True)
+        return self._create(f"{self.__name__.upper()}_{value}", value, by_value_only=True)
 
     def _get_multi_flags(self, long value):
-
         try:
             return self._by_value[value]
         except KeyError:
@@ -108,7 +98,7 @@ class EnumType(type):
         if to_find:
             raise KeyError(value)
 
-        name = '|'.join(f.name for f in flags)
+        name = "|".join(f.name for f in flags)
         cdef EnumFlag combo = self._create(name, value, by_value_only=True)
         combo.flags = tuple(flags)
 
@@ -127,7 +117,7 @@ class EnumType(type):
 
 
 def _unpickle(mod_name, cls_name, item_name):
-    mod = __import__(mod_name, fromlist=['.'])
+    mod = __import__(mod_name, fromlist=["."])
     cls = getattr(mod, cls_name)
     return cls[item_name]
 
@@ -135,8 +125,7 @@ def _unpickle(mod_name, cls_name, item_name):
 copyreg.constructor(_unpickle)
 
 
-cdef class EnumItem(object):
-
+cdef class EnumItem:
     """
     Enumerations are when an attribute may only take on a single value at once, and
     they are represented as integers in the FFmpeg API. We associate names with each
@@ -173,9 +162,8 @@ cdef class EnumItem(object):
     cdef Py_hash_t _hash
 
     def __cinit__(self, sentinel_, str name, int value, doc=None):
-
         if sentinel_ is not sentinel:
-            raise RuntimeError("Cannot instantiate {}.".format(self.__class__.__name__))
+            raise RuntimeError(f"Cannot instantiate {self.__class__.__name__}.")
 
         self.name = name
         self.value = value
@@ -192,12 +180,7 @@ cdef class EnumItem(object):
         self._hash = hash_
 
     def __repr__(self):
-        return '<{}.{}:{}(0x{:x})>'.format(
-            self.__class__.__module__,
-            self.__class__.__name__,
-            self.name,
-            self.value,
-        )
+        return f"<{self.__class__.__module__}.{self.__class__.__name__}:{self.name}(0x{self.value:x})>"
 
     def __str__(self):
         return self.name
@@ -212,19 +195,16 @@ cdef class EnumItem(object):
         return (_unpickle, (self.__class__.__module__, self.__class__.__name__, self.name))
 
     def __eq__(self, other):
-
         if isinstance(other, str):
-
             if self.name == other:  # The quick method.
                 return True
 
             try:
                 other_inst = self.__class__._by_name[other]
             except KeyError:
-                raise ValueError("{} does not have item named {!r}".format(
-                    self.__class__.__name__,
-                    other,
-                ))
+                raise ValueError(
+                    f"{self.__class__.__name__} does not have item named {other!r}"
+                )
             else:
                 return self is other_inst
 
@@ -233,18 +213,16 @@ cdef class EnumItem(object):
                 return True
             if other in self.__class__._by_value:
                 return False
-            raise ValueError("{} does not have item valued {}".format(
-                self.__class__.__name__,
-                other,
-            ))
+            raise ValueError(
+                f"{self.__class__.__name__} does not have item valued {other}"
+            )
 
         if isinstance(other, self.__class__):
             return self is other
 
-        raise TypeError("'==' not supported between {} and {}".format(
-            self.__class__.__name__,
-            type(other).__name__,
-        ))
+        raise TypeError(
+            f"'==' not supported between {self.__class__.__name__} and {type(other).__name__}"
+        )
 
     def __ne__(self, other):
         return not (self == other)
@@ -322,8 +300,7 @@ cdef class EnumFlag(EnumItem):
         return bool(self.value)
 
 
-cdef class EnumProperty(object):
-
+cdef class EnumProperty:
     cdef object enum
     cdef object fget
     cdef object fset
@@ -385,6 +362,6 @@ cpdef define_enum(name, module, items, bint is_flags=False):
         base_cls = EnumItem
 
     # Some items may be None if they correspond to an unsupported FFmpeg feature
-    cls = EnumType(name, (base_cls, ), {'__module__': module}, [i for i in items if i is not None])
+    cls = EnumType(name, (base_cls, ), {"__module__": module}, [i for i in items if i is not None])
 
     return cls

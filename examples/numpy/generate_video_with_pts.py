@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-from fractions import Fraction
 import colorsys
+from fractions import Fraction
 
 import numpy as np
 
 import av
-
 
 (width, height) = (640, 360)
 total_frames = 20
@@ -43,7 +42,6 @@ block_w2 = int(0.5 * width / total_frames * 0.75)
 block_h2 = int(0.5 * height / 4)
 
 for frame_i in range(total_frames):
-
     # move around the color wheel (hue)
     nice_color = colorsys.hsv_to_rgb(frame_i / total_frames, 1.0, 1.0)
     nice_color = (np.array(nice_color) * 255).astype(np.uint8)
@@ -51,9 +49,9 @@ for frame_i in range(total_frames):
     # draw blocks of a progress bar
     cx = int(width / total_frames * (frame_i + 0.5))
     cy = int(height / 2)
-    the_canvas[
-        cy - block_h2 : cy + block_h2, cx - block_w2 : cx + block_w2
-    ] = nice_color
+    the_canvas[cy - block_h2 : cy + block_h2, cx - block_w2 : cx + block_w2] = (
+        nice_color
+    )
 
     frame = av.VideoFrame.from_ndarray(the_canvas, format="rgb24")
 
